@@ -79,6 +79,8 @@ import java.util.zip.Inflater;
 import java.util.zip.DataFormatException;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -95,6 +97,11 @@ import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 
 public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceRemote.CotEventListener {
+    // Last received sensor frequency in Hz (Float.NaN = no reading yet)
+    public static volatile float lastSensorFrequencyHz = Float.NaN;
+    // Called on the receiver thread when a new sensor reading arrives; UI should post to main thread
+    public static volatile Runnable onSensorUpdate = null;
+
     // constants
     private static final String TAG = "MeshtasticReceiver";
     private static NotificationManager mNotifyManager;
@@ -895,6 +902,16 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
                 int channel = payload.getChannel();
                 int hopLimit = payload.getHopLimit();
                 fountainChunkManager.handlePacket(raw, senderNodeId, channel, hopLimit);
+                return;
+            }
+
+            // Sensor data packet: [0x03][type][float LE]
+            if (raw.length >= 6 && raw[0] == Constants.TRANSFER_TYPE_SENSOR) {
+                float value = ByteBuffer.wrap(raw, 2, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+                Log.d(TAG, "Received sensor packet: type=" + (raw[1] & 0xFF) + " value=" + value + " Hz");
+                lastSensorFrequencyHz = value;
+                Runnable cb = onSensorUpdate;
+                if (cb != null) cb.run();
                 return;
             }
 

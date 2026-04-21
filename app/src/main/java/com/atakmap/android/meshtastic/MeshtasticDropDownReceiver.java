@@ -100,6 +100,8 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
     private TextView metricsBattery, metricsVoltage, metricsChUtil;
     private TextView metricsAirTx, metricsUptime, metricsNodeCount;
     private TextView metricsRegion, metricsLoraPreset, metricsRole;
+    // Sensor data
+    private TextView sensorFrequency;
     // Role warning banner
     private LinearLayout roleWarningBanner;
     private Button setRoleTakBtn;
@@ -154,6 +156,10 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
         metricsRegion = mainView.findViewById(R.id.metricsRegion);
         metricsLoraPreset = mainView.findViewById(R.id.metricsLoraPreset);
         metricsRole = mainView.findViewById(R.id.metricsRole);
+
+        // Sensor data
+        sensorFrequency = mainView.findViewById(R.id.sensorFrequency);
+        MeshtasticReceiver.onSensorUpdate = () -> mapView.post(this::updateSensorDisplay);
 
         // Role warning banner
         roleWarningBanner = mainView.findViewById(R.id.roleWarningBanner);
@@ -839,6 +845,21 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
         Log.d(TAG, "Codec2 reinitialized with mode 700C, frame size: " + c2FrameSize + ", samples: " + samplesBufSize);
     }
     
+    private void updateSensorDisplay() {
+        float hz = MeshtasticReceiver.lastSensorFrequencyHz;
+        if (Float.isNaN(hz)) {
+            sensorFrequency.setText("--");
+        } else if (hz >= 1e9f) {
+            sensorFrequency.setText(String.format(Locale.US, "%.3f GHz", hz / 1e9f));
+        } else if (hz >= 1e6f) {
+            sensorFrequency.setText(String.format(Locale.US, "%.3f MHz", hz / 1e6f));
+        } else if (hz >= 1e3f) {
+            sensorFrequency.setText(String.format(Locale.US, "%.3f kHz", hz / 1e3f));
+        } else {
+            sensorFrequency.setText(String.format(Locale.US, "%.0f Hz", hz));
+        }
+    }
+
     /**
      * Update the metrics display with current device information
      */
@@ -1230,6 +1251,7 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
 
     @Override
     protected void disposeImpl() {
+        MeshtasticReceiver.onSensorUpdate = null;
         mapView.removeOnKeyListener(keyListener);
 
         // Clean up TOT timer
