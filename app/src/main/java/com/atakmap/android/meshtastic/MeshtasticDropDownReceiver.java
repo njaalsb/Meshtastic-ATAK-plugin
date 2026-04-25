@@ -103,7 +103,8 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
     // Sensor data
     private TextView sensorFrequency;
     // Image data
-    private TextView imageData;
+    private TextView imageStatus;
+    private ImageView receivedImageView;
     // Role warning banner
     private LinearLayout roleWarningBanner;
     private Button setRoleTakBtn;
@@ -162,6 +163,11 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
         // Sensor data
         sensorFrequency = mainView.findViewById(R.id.sensorFrequency);
         MeshtasticReceiver.onSensorUpdate = () -> mapView.post(this::updateSensorDisplay);
+
+        // Image data
+        imageStatus = mainView.findViewById(R.id.imageStatus);
+        receivedImageView = mainView.findViewById(R.id.receivedImageView);
+        MeshtasticReceiver.onImageUpdate = () -> mapView.post(this::updateImageDisplay);
 
         // Role warning banner
         roleWarningBanner = mainView.findViewById(R.id.roleWarningBanner);
@@ -847,6 +853,24 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
         Log.d(TAG, "Codec2 reinitialized with mode 700C, frame size: " + c2FrameSize + ", samples: " + samplesBufSize);
     }
     
+    private void updateImageDisplay() {
+        int received = MeshtasticReceiver.imageChunksReceived;
+        int total = MeshtasticReceiver.imageChunksTotal;
+        android.graphics.Bitmap bmp = MeshtasticReceiver.lastReceivedImage;
+
+        if (bmp != null && received == total && total > 0) {
+            imageStatus.setText("Complete (" + total + "/" + total + " chunks)");
+            receivedImageView.setImageBitmap(bmp);
+            receivedImageView.setVisibility(View.VISIBLE);
+        } else if (total > 0) {
+            imageStatus.setText("Receiving... " + received + "/" + total + " chunks");
+            receivedImageView.setVisibility(View.GONE);
+        } else {
+            imageStatus.setText("--");
+            receivedImageView.setVisibility(View.GONE);
+        }
+    }
+
     private void updateSensorDisplay() {
         float hz = MeshtasticReceiver.lastSensorFrequencyHz;
         if (Float.isNaN(hz)) {
@@ -1254,6 +1278,7 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
     @Override
     protected void disposeImpl() {
         MeshtasticReceiver.onSensorUpdate = null;
+        MeshtasticReceiver.onImageUpdate = null;
         mapView.removeOnKeyListener(keyListener);
 
         // Clean up TOT timer

@@ -72,6 +72,10 @@ import org.meshtastic.core.model.MessageStatus;
 import org.meshtastic.core.model.NodeInfo;
 import org.meshtastic.proto.PortNum;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -101,6 +105,14 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
     public static volatile float lastSensorFrequencyHz = Float.NaN;
     // Called on the receiver thread when a new sensor reading arrives; UI should post to main thread
     public static volatile Runnable onSensorUpdate = null;
+
+    // Last fully reassembled image from RPi
+    public static volatile Bitmap lastReceivedImage = null;
+    public static volatile int imageChunksReceived = 0;
+    public static volatile int imageChunksTotal = 0;
+    public static volatile Runnable onImageUpdate = null;
+    private static int currentImageSid = -1;
+    private static byte[][] imageChunks = null;
 
     // constants
     private static final String TAG = "MeshtasticReceiver";
@@ -398,6 +410,13 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
                 }
 
                 if (payload.getTo().equals("^all")) {
+                    // Image chunk from RPi transmitter
+                    String rawText = payload.getBytes().utf8();
+                    if (rawText.startsWith("IMG|")) {
+                        handleImageChunk(rawText);
+                        return;
+                    }
+
                     // Skip TEXT_MESSAGE_APP from known ATAK users to avoid duplicates
                     // (they already send via ATAK_PLUGIN port 72)
                     String senderNodeId = payload.getFrom();
@@ -1652,6 +1671,74 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
      * @param senderNodeId The sender's node ID (for sending MFT acknowledgment)
      * @param transferType The type of transfer (Constants.TRANSFER_TYPE_COT or TRANSFER_TYPE_FILE)
      */
+    /**
+     * Reassembles image chunks sent by the RPi transmitter.
+     * Text format: IMG|<sid>|<idx>|<base64(header+payload)>
+     * Header (7 bytes, big-endian): [sid:1][total:2][idx:2][plen:2]
+     */
+    private void handleImageChunk(String text) {
+        String[] parts = text.split("\\|", 4);
+        if (parts.length < 4) return;
+
+        int sid, idx;
+        try {
+            sid = Integer.parseInt(parts[1]);
+            idx = Integer.parseInt(parts[2]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+
+        byte[] decoded;
+        try {
+            decoded = Base64.decode(parts[3], Base64.DEFAULT);
+        } catch (Exception e) {
+            return;
+        }
+        if (decoded.length < 7) return;
+
+        int total = ((decoded[1] & 0xFF) << 8) | (decoded[2] & 0xFF);
+        int plen  = ((decoded[5] & 0xFF) << 8) | (decoded[6] & 0xFF);
+        if (plen < 0 || 7 + plen > decoded.length) return;
+        byte[] payload = Arrays.copyOfRange(decoded, 7, 7 + plen);
+
+        // New session — reset buffer
+        if (sid != currentImageSid || imageChunks == null || imageChunks.length != total) {
+            currentImageSid = sid;
+            imageChunks = new byte[total][];
+            imageChunksTotal = total;
+            imageChunksReceived = 0;
+        }
+        if (idx < 0 || idx >= total) return;
+        if (imageChunks[idx] != null) return; // duplicate
+
+        imageChunks[idx] = payload;
+        imageChunksReceived++;
+        Log.d(TAG, "Image chunk " + imageChunksReceived + "/" + imageChunksTotal + " (sid=" + sid + ")");
+
+        Runnable cb = onImageUpdate;
+        if (cb != null) cb.run();
+
+        if (imageChunksReceived == imageChunksTotal) {
+            int size = 0;
+            for (byte[] c : imageChunks) size += c.length;
+            byte[] full = new byte[size];
+            int pos = 0;
+            for (byte[] c : imageChunks) {
+                System.arraycopy(c, 0, full, pos, c.length);
+                pos += c.length;
+            }
+            Bitmap bmp = BitmapFactory.decodeByteArray(full, 0, full.length);
+            if (bmp != null) {
+                lastReceivedImage = bmp;
+                Log.d(TAG, "Image reassembled: " + bmp.getWidth() + "x" + bmp.getHeight());
+            } else {
+                Log.e(TAG, "BitmapFactory failed to decode reassembled image");
+            }
+            imageChunks = null;
+            if (cb != null) cb.run();
+        }
+    }
+
     private void processFountainData(byte[] data, String senderNodeId, byte transferType) {
         // Normalize transfer type (iOS uses ASCII '0'/'1' instead of 0x00/0x01)
         if (transferType == Constants.TRANSFER_TYPE_COT_ASCII) {
