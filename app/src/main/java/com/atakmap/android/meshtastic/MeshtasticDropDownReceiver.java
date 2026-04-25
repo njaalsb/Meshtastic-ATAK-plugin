@@ -102,6 +102,8 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
     private TextView metricsRegion, metricsLoraPreset, metricsRole;
     // Sensor data
     private TextView sensorFrequency;
+    // Image data
+    private TextView imageData;
     // Role warning banner
     private LinearLayout roleWarningBanner;
     private Button setRoleTakBtn;
