@@ -854,18 +854,24 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
     }
     
     private void updateImageDisplay() {
+        /* This is the main function updating the image display
+        *  when all chunks are received
+        */
         int received = MeshtasticReceiver.imageChunksReceived;
         int total = MeshtasticReceiver.imageChunksTotal;
         android.graphics.Bitmap bmp = MeshtasticReceiver.lastReceivedImage;
 
         if (bmp != null && received == total && total > 0) {
+            // Displays image if all chunks are received
             imageStatus.setText("Complete (" + total + "/" + total + " chunks)");
             receivedImageView.setImageBitmap(bmp);
             receivedImageView.setVisibility(View.VISIBLE);
         } else if (total > 0) {
+            // Image not received yet, shows progress of received chunks
             imageStatus.setText("Receiving... " + received + "/" + total + " chunks");
             receivedImageView.setVisibility(View.GONE);
         } else {
+            // No chunks received, displays nothing
             imageStatus.setText("--");
             receivedImageView.setVisibility(View.GONE);
         }
