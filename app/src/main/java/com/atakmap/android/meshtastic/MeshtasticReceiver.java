@@ -924,6 +924,12 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
                 return;
             }
 
+            // Image chunk: [0x02][sid:1][total:1][idx:1][plen:1][payload...]
+            if (raw.length >= 5 && raw[0] == Constants.TRANSFER_TYPE_IMAGE) {
+                handleBinaryImageChunk(raw);
+                return;
+            }
+
             // Sensor data packet: [0x03][type][float LE]
             if (raw.length >= 6 && raw[0] == Constants.TRANSFER_TYPE_SENSOR) {
                 float value = ByteBuffer.wrap(raw, 2, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
@@ -1694,12 +1700,12 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
         } catch (Exception e) {
             return;
         }
-        if (decoded.length < 7) return;
+        if (decoded.length < 5) return;
 
-        int total = ((decoded[1] & 0xFF) << 8) | (decoded[2] & 0xFF);
-        int plen  = ((decoded[5] & 0xFF) << 8) | (decoded[6] & 0xFF);
-        if (plen < 0 || 7 + plen > decoded.length) return;
-        byte[] payload = Arrays.copyOfRange(decoded, 7, 7 + plen);
+        int total = decoded[2] & 0xFF;
+        int plen  = decoded[4] & 0xFF;
+        if (5 + plen > decoded.length) return;
+        byte[] payload = Arrays.copyOfRange(decoded, 5, 5 + plen);
 
         // New session — reset buffer
         if (sid != currentImageSid || imageChunks == null || imageChunks.length != total) {
@@ -1712,6 +1718,52 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
         if (imageChunks[idx] != null) return; // duplicate
 
         imageChunks[idx] = payload;
+        imageChunksReceived++;
+        Log.d(TAG, "Image chunk " + imageChunksReceived + "/" + imageChunksTotal + " (sid=" + sid + ")");
+
+        Runnable cb = onImageUpdate;
+        if (cb != null) cb.run();
+
+        if (imageChunksReceived == imageChunksTotal) {
+            int size = 0;
+            for (byte[] c : imageChunks) size += c.length;
+            byte[] full = new byte[size];
+            int pos = 0;
+            for (byte[] c : imageChunks) {
+                System.arraycopy(c, 0, full, pos, c.length);
+                pos += c.length;
+            }
+            Bitmap bmp = BitmapFactory.decodeByteArray(full, 0, full.length);
+            if (bmp != null) {
+                lastReceivedImage = bmp;
+                Log.d(TAG, "Image reassembled: " + bmp.getWidth() + "x" + bmp.getHeight());
+            } else {
+                Log.e(TAG, "BitmapFactory failed to decode reassembled image");
+            }
+            imageChunks = null;
+            if (cb != null) cb.run();
+        }
+    }
+
+    private void handleBinaryImageChunk(byte[] raw) {
+        // raw[0]=type, raw[1]=sid, raw[2]=total, raw[3]=idx, raw[4]=plen, raw[5+]=payload
+        int sid   = raw[1] & 0xFF;
+        int total = raw[2] & 0xFF;
+        int idx   = raw[3] & 0xFF;
+        int plen  = raw[4] & 0xFF;
+        if (5 + plen > raw.length) return;
+        byte[] chunkPayload = Arrays.copyOfRange(raw, 5, 5 + plen);
+
+        if (sid != currentImageSid || imageChunks == null || imageChunks.length != total) {
+            currentImageSid = sid;
+            imageChunks = new byte[total][];
+            imageChunksTotal = total;
+            imageChunksReceived = 0;
+        }
+        if (idx >= total) return;
+        if (imageChunks[idx] != null) return;
+
+        imageChunks[idx] = chunkPayload;
         imageChunksReceived++;
         Log.d(TAG, "Image chunk " + imageChunksReceived + "/" + imageChunksTotal + " (sid=" + sid + ")");
 

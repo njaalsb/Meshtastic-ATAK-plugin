@@ -41,6 +41,7 @@ public final class Constants {
     // Transfer Types (prefixed to fountain code payloads)
     public static final byte TRANSFER_TYPE_COT = 0x00;
     public static final byte TRANSFER_TYPE_FILE = 0x01;
+    public static final byte TRANSFER_TYPE_IMAGE = 0x02;
     public static final byte TRANSFER_TYPE_SENSOR = 0x03;
     // iOS uses ASCII characters instead of byte values
     public static final byte TRANSFER_TYPE_COT_ASCII = 0x30;  // '0'
