@@ -1,6 +1,6 @@
 # Meshtastic ATAK Plugin
 
-Versjon av Meshtastic plugin klonet fra (niccellular)[https://github.com/meshtastic/ATAK-Plugin]. Den fungerer i utgangspunktet ganske likt som den originale versjonen, med noen ekstra funksjonaliteter. Denne versjonen har funksjonalitet for å kunne motta sensordata fra en RTL-SDR og bilder i formatet .webp. 
+Versjon av Meshtastic plugin klonet fra [niccellular](https://github.com/meshtastic/ATAK-Plugin). Den fungerer i utgangspunktet ganske likt som den originale versjonen, med noen ekstra funksjonaliteter. Denne versjonen har funksjonalitet for å kunne motta sensordata fra en RTL-SDR og bilder i formatet .webp. 
 
 NB! Pluginen er ikke signert av tak.gov og fungerer kun på developer builden av ATAK-CIV!
 
@@ -35,4 +35,4 @@ adb install "path_til_.apk"
 
 ### Docs:
 
-- (User guide)[https://drive.google.com/file/d/1bo9WHadg3J3o55OLlx1mn3McqEJzvgrK/view]
+- [User guide](https://drive.google.com/file/d/1bo9WHadg3J3o55OLlx1mn3McqEJzvgrK/view)
