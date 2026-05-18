@@ -854,37 +854,39 @@ public class MeshtasticDropDownReceiver extends DropDownReceiver implements
     }
     
     private void updateImageDisplay() {
-        /* This is the main function updating the image display
-        *  when all chunks are received
-        */
+        // Hovefunksjon for å oppdatere bilde-elementet i GUI
         int received = MeshtasticReceiver.imageChunksReceived;
         int total = MeshtasticReceiver.imageChunksTotal;
         android.graphics.Bitmap bmp = MeshtasticReceiver.lastReceivedImage;
 
         if (bmp != null && received == total && total > 0) {
-            // Displays image if all chunks are received
+            // Vis bildet viss alle chunks er motatt
             imageStatus.setText("Complete (" + total + "/" + total + " chunks)");
             receivedImageView.setImageBitmap(bmp);
             receivedImageView.setVisibility(View.VISIBLE);
         } else if (total > 0) {
-            // Image not received yet, shows progress of received chunks
+            // Bildet er ikke motatt enda, vis progresjon
             imageStatus.setText("Receiving... " + received + "/" + total + " chunks");
             receivedImageView.setVisibility(View.GONE);
         } else {
-            // No chunks received, displays nothing
+            // Ingen chunks er motatt, displayet viser ingenting
             imageStatus.setText("--");
             receivedImageView.setVisibility(View.GONE);
         }
     }
 
     private void updateSensorDisplay() {
+        // Oppdaterer sensorkortet i GUI
         float hz = MeshtasticReceiver.lastSensorFrequencyHz;
         if (Float.isNaN(hz)) {
             sensorFrequency.setText("--");
+            // GHz
         } else if (hz >= 1e9f) {
             sensorFrequency.setText(String.format(Locale.US, "%.3f GHz", hz / 1e9f));
+            // MHz
         } else if (hz >= 1e6f) {
             sensorFrequency.setText(String.format(Locale.US, "%.3f MHz", hz / 1e6f));
+            // KHz
         } else if (hz >= 1e3f) {
             sensorFrequency.setText(String.format(Locale.US, "%.3f kHz", hz / 1e3f));
         } else {

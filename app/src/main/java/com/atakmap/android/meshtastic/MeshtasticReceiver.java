@@ -297,6 +297,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        // Main callback metode
         String action = intent.getAction();
         if (action == null) return;
         Log.d(TAG, "ACTION: " + action);
@@ -353,6 +354,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
                 MessageStatus status = getParcelableExtraSafe(intent, Constants.EXTRA_STATUS, MessageStatus.class);
                 Log.d(TAG, "Message Status ID: " + id + " Status: " + status);
                 break;
+                // Vår case, kaller receive ved mottak av riktig TRANSFER_TYPE
             case Constants.ACTION_RECEIVED_ATAK_FORWARDER:
             case Constants.ACTION_RECEIVED_ATAK_PLUGIN: {
                 Thread thread = new Thread(() -> {
@@ -924,13 +926,13 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
                 return;
             }
 
-            // Image chunk: [0x02][sid:1][total:1][idx:1][plen:1][payload...]
+            // Image chunk motatt, kall funksjon for håndtering
             if (raw.length >= 5 && raw[0] == Constants.TRANSFER_TYPE_IMAGE) {
                 handleBinaryImageChunk(raw);
                 return;
             }
 
-            // Sensor data packet: [0x03][type][float LE]
+            // Sensordata pakke er motatt, håndteres her
             if (raw.length >= 6 && raw[0] == Constants.TRANSFER_TYPE_SENSOR) {
                 float value = ByteBuffer.wrap(raw, 2, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
                 Log.d(TAG, "Received sensor packet: type=" + (raw[1] & 0xFF) + " value=" + value + " Hz");
@@ -1746,7 +1748,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
     }
 
     private void handleBinaryImageChunk(byte[] raw) {
-        // raw[0]=type, raw[1]=sid, raw[2]=total, raw[3]=idx, raw[4]=plen, raw[5+]=payload
+        // Funksjon for å håndtere bildechunken
         int sid   = raw[1] & 0xFF;
         int total = raw[2] & 0xFF;
         int idx   = raw[3] & 0xFF;
@@ -1754,6 +1756,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
         if (5 + plen > raw.length) return;
         byte[] chunkPayload = Arrays.copyOfRange(raw, 5, 5 + plen);
 
+        // Bruker SID for å sjekke at de samme chunksene tilhører det samme bildet
         if (sid != currentImageSid || imageChunks == null || imageChunks.length != total) {
             currentImageSid = sid;
             imageChunks = new byte[total][];
@@ -1762,7 +1765,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
         }
         if (idx >= total) return;
         if (imageChunks[idx] != null) return;
-
+        // Bruker chunks motatt og totalen for å vise bruker at en overføring skjer
         imageChunks[idx] = chunkPayload;
         imageChunksReceived++;
         Log.d(TAG, "Image chunk " + imageChunksReceived + "/" + imageChunksTotal + " (sid=" + sid + ")");
@@ -1770,6 +1773,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
         Runnable cb = onImageUpdate;
         if (cb != null) cb.run();
 
+        // Setter sammen bildet, hovedsaklig ved bruk av decodeByteArray()
         if (imageChunksReceived == imageChunksTotal) {
             int size = 0;
             for (byte[] c : imageChunks) size += c.length;
@@ -1779,6 +1783,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
                 System.arraycopy(c, 0, full, pos, c.length);
                 pos += c.length;
             }
+            // Bildet lagres i bmp, oppdateres i dropDownReceiver
             Bitmap bmp = BitmapFactory.decodeByteArray(full, 0, full.length);
             if (bmp != null) {
                 lastReceivedImage = bmp;
@@ -1786,6 +1791,7 @@ public class MeshtasticReceiver extends BroadcastReceiver implements CotServiceR
             } else {
                 Log.e(TAG, "BitmapFactory failed to decode reassembled image");
             }
+            // Nullstiller imageChunks når bildet er motatt
             imageChunks = null;
             if (cb != null) cb.run();
         }
